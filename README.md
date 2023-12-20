@@ -1,6 +1,31 @@
-# Tauri + React + Typescript
+# nteract next
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+_Iterating on the next version of nteract_
+
+## Background
+
+nteract next is a desktop application for notebooks built on:
+
+* Rust
+* Tauri
+* Tokio
+
+## Development
+
+Clone the repo, cd into `nteract-next`
+
+Install dependencies:
+
+```
+pnpm install
+```
+
+Run the dev version
+
+```
+pnpm tauri dev
+```
+
 
 ## Recommended IDE Setup
 
