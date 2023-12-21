@@ -14,6 +14,11 @@ nteract next is a desktop application for notebooks built on:
 
 Clone the repo, cd into `nteract-next`
 
+Install pre-reqs:
+
+- [pnpm](https://pnpm.io/installation)
+- [Rust](https://www.rust-lang.org/tools/install)
+
 Install dependencies:
 
 ```
