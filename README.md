@@ -10,6 +10,33 @@ nteract next is a desktop application for notebooks built on:
 * Tauri
 * Tokio
 
+
+```
++-------------------+     +-------------------+
+| Tauri Main Process|     | Kernel Sidecar    |
++-------------------+     +-------------------+
+         |                       ^
+         | IPC and Events        |
+         v                       v
++-------------------+     +-------------------+
+| State Update      |     | Jupyter Message   |
+| Handler           |     | Handlers          |
++-------------------+     +-------------------+
+         |                       ^
+         | Events                |
+         v                       v
++-------------------+     +-------------------+
+| Event Bus         |<--->| Notebook Document |
++-------------------+     | Service           |
+         |                       |
+         | Events                |
+         v                       v
++-------------------+     +-------------------+
+| Web View of       |     | In-Memory State   |
+| Document          |     | of Document       |
++-------------------+     +-------------------+
+```
+
 ## Development
 
 Clone the repo, cd into `nteract-next`
