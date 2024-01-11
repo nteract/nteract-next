@@ -45,6 +45,8 @@ Install pre-reqs:
 
 - [pnpm](https://pnpm.io/installation)
 - [Rust](https://www.rust-lang.org/tools/install)
+- [Tauri system deps](https://tauri.app/v1/guides/getting-started/prerequisites/)
+  - (Not listed on Tauri site but may also need `libsoup2.4-dev`)
 
 Install dependencies:
 
