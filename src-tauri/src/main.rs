@@ -4,7 +4,7 @@
 use tokio::sync::Mutex;
 
 use std::collections::HashMap;
-use tauri::{State, Window};
+use tauri::{State, Window, Manager};
 use ulid::Ulid;
 // Structures for the notebook and cells
 use log::{debug, info, warn};
@@ -165,12 +165,33 @@ fn main() {
 
     let state = AppState::new();
 
-    // HACK: Bootstrapping with only the main window.
-    state.create_notebook("main");
-
     info!("Launching nteract on Tauri");
     tauri::Builder::default()
         .manage(state) // Add AppState to Tauri's managed state
+        // .setup(|app| {
+        //     // On initial boot, always create a new notebook
+        //     // This may need to change if we're loading a notebook at the beginning,
+        //     // once we get there.
+        //     // let state = app.state::<AppState>();
+
+        //     // tauri::async_runtime::spawn(async move {
+        //     //     app.state::<AppState>().create_notebook("main").await;
+        //     // });
+            
+        //     Ok(())
+        // })
+        .on_page_load(|window, _| {
+            let window_id = window.label(); // Use the window label as a unique identifier
+            info!("Page loaded in window with ID: {}", window_id);
+
+
+            let app = window.app_handle();
+
+            tauri::async_runtime::spawn(async move {
+                app.state::<AppState>().create_notebook("main").await;
+            });
+
+        })
         .invoke_handler(tauri::generate_handler![
             create_cell,
             execute_cell,
