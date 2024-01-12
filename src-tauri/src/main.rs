@@ -1,17 +1,17 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use std::collections::HashMap;
-use tauri::{State, Window};
+use tauri::{Manager, State, Window};
 use ulid::Ulid;
 // Structures for the notebook and cells
-use log::{info, warn, debug};
+use log::{debug, info, warn};
 
 use env_logger;
 
-
+use tokio::task;
 
 struct Notebook {
     cells: HashMap<String, Cell>,
@@ -36,38 +36,37 @@ impl AppState {
         }
     }
 
-    fn create_notebook(&self, window_id: &str) {
-        let mut notebooks = self.notebooks.lock().unwrap();
-        notebooks.insert(window_id.to_string(), Notebook {
-            cells: HashMap::new(),
-            cell_order: Vec::new(),
-        });
+    async fn create_notebook(&self, window_id: &str) {
+        let mut notebooks = self.notebooks.lock().await;
+        notebooks.insert(
+            window_id.to_string(),
+            Notebook {
+                cells: HashMap::new(),
+                cell_order: Vec::new(),
+            },
+        );
     }
 
     // Perform the cell execution within the AppState context
-    fn execute_cell(&self, window_id: &str, cell_id: &str) -> bool {
+    async fn execute_cell(&self, window_id: &str, cell_id: &str) -> bool {
         debug!(
             "Attempting to execute cell with ID: {} in window with ID: {}",
-            cell_id,
-            window_id
+            cell_id, window_id
         );
 
-        let mut notebooks = self.notebooks.lock().unwrap();
+        let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
-            notebook.execute_cell(cell_id);
+            notebook.execute_cell(cell_id).await;
             true
         } else {
             false
         }
     }
 
-    fn create_cell(&self, window_id: &str) -> Option<String> {
-        debug!(
-            "Creating a new cell in window with ID: {}",
-            window_id
-        );
+    async fn create_cell(&self, window_id: &str) -> Option<String> {
+        debug!("Creating a new cell in window with ID: {}", window_id);
 
-        let mut notebooks = self.notebooks.lock().unwrap();
+        let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
             Some(notebook.create_cell())
         } else {
@@ -76,15 +75,13 @@ impl AppState {
     }
 
     // Update a specific cell within the specified notebook
-    fn update_cell(&self, window_id: &str, cell_id: &str, new_content: &str) -> bool {
+    async fn update_cell(&self, window_id: &str, cell_id: &str, new_content: &str) -> bool {
         debug!(
             "Updating cell with ID: {} in window with ID: {} with new content: {}",
-            cell_id,
-            window_id,
-            new_content
+            cell_id, window_id, new_content
         );
 
-        let mut notebooks = self.notebooks.lock().unwrap();
+        let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
             notebook.update_cell(cell_id, new_content);
             true
@@ -95,15 +92,26 @@ impl AppState {
 }
 
 impl Notebook {
-    fn execute_cell(&mut self, cell_id: &str) {
+    async fn execute_cell(&mut self, cell_id: &str) {
         if let Some(cell) = self.cells.get(cell_id) {
-            warn!(
-                "Execute Cell is not implemented yet. ID: {}, Content: {}",
-                cell.id,
-                cell.content
-            );
+            let cell_content = cell.content.clone();
+            let result = task::spawn_blocking(move || {
+                println!("Executing cell with content: {}", cell_content);
+                "Pretend that execution got queued"
+            })
+            .await;
+
+            match result {
+                Ok(_) => {
+                    println!("Cell execution queued");
+                }
+                Err(_) => {
+                    println!("Cell failed to queue");
+                }
+            }
+        } else {
+            warn!("Cell with ID: {} not found", cell_id);
         }
-    
     }
 
     fn create_cell(&mut self) -> String {
@@ -130,21 +138,33 @@ impl Notebook {
 }
 
 #[tauri::command]
-fn create_cell(state: State<AppState>, window: Window) -> Option<String> {
+async fn create_cell(
+    state: State<'_, AppState>,
+    window: Window,
+) -> Result<Option<String>, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
-    state.create_cell(window_id)
+    Ok(state.create_cell(window_id).await)
 }
 
 #[tauri::command]
-fn execute_cell(state: State<AppState>, window: Window, cell_id: &str) -> bool {
+async fn execute_cell(
+    state: State<'_, AppState>,
+    window: Window,
+    cell_id: &str,
+) -> Result<bool, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
-    state.execute_cell(window_id, cell_id)
+    Ok(state.execute_cell(window_id, cell_id).await)
 }
 
 #[tauri::command]
-fn update_cell(state: State<AppState>, window: Window, cell_id: &str, new_content: &str) -> bool {
+async fn update_cell(
+    state: State<'_, AppState>,
+    window: Window,
+    cell_id: &str,
+    new_content: &str,
+) -> Result<bool, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
-    state.update_cell(window_id, cell_id, new_content)
+    Ok(state.update_cell(window_id, cell_id, new_content).await)
 }
 
 // The main entry point for the Tauri application
@@ -155,16 +175,19 @@ fn main() {
         .filter(None, log::LevelFilter::Debug)
         .init();
 
-
     let state = AppState::new();
-
-    // HACK: Bootstrapping with only the main window.
-    state.create_notebook("main");
-
 
     info!("Launching nteract on Tauri");
     tauri::Builder::default()
         .manage(state) // Add AppState to Tauri's managed state
+        .on_page_load(|window, _| {
+            tauri::async_runtime::spawn(async move {
+                let window_id = window.label(); // Use the window label as a unique identifier
+                info!("Page loaded in window with ID: {}", window_id);
+                let app = window.app_handle();
+                app.state::<AppState>().create_notebook(window_id).await;
+            });
+        })
         .invoke_handler(tauri::generate_handler![
             create_cell,
             execute_cell,
