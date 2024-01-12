@@ -138,8 +138,8 @@ impl Notebook {
 }
 
 #[tauri::command]
-async fn create_cell<'a>(
-    state: State<'a, AppState>,
+async fn create_cell(
+    state: State<'_, AppState>,
     window: Window,
 ) -> Result<Option<String>, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
@@ -147,18 +147,18 @@ async fn create_cell<'a>(
 }
 
 #[tauri::command]
-async fn execute_cell<'a>(
-    state: State<'a, AppState>,
+async fn execute_cell(
+    state: State<'_, AppState>,
     window: Window,
-    cell_id: &'a str,
+    cell_id: &str,
 ) -> Result<bool, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
     Ok(state.execute_cell(window_id, cell_id).await)
 }
 
 #[tauri::command]
-async fn update_cell<'a>(
-    state: State<'a, AppState>,
+async fn update_cell(
+    state: State<'_, AppState>,
     window: Window,
     cell_id: &str,
     new_content: &str,
