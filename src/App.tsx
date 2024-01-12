@@ -1,4 +1,6 @@
 import Cell from "@/components/Cell";
+
+import { Button} from "@/components/ui/button";
 import { useNotebook } from '@/hooks/useNotebook';
 
 function App() {
@@ -8,7 +10,7 @@ function App() {
       {cells.map((cellID: string) => (
           <Cell cellID={cellID}/>
       ))}
-      <button onClick={createCell}>New Cell</button>
+      <Button onClick={createCell}>New Cell</Button>
     </div>
   );
 }
