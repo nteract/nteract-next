@@ -35,6 +35,7 @@ function App() {
     <div>
       {cells.map((cell) => (
         <div key={cell.id}>
+          <Cell />
           <textarea
             value={cell.content}
             onChange={(e) => update_cell(cell.id, e.target.value)}
