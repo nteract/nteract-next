@@ -1,14 +1,14 @@
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import { useCell } from "../hooks/useCell";
+import { useCell } from "@/hooks/useCell";
+import { Editor } from "@/components//Editor";
 
-const Cell = ({ cellID }: { cellID: string }) => {
-  const { content, executeCell, updateCell, cellState, executionCount } = useCell(cellID);
+const Cell = ({ cellId }: { cellId: string }) => {
+  const { executeCell, cellState, executionCount } = useCell(cellId);
 
   let actionIcon = "▶";
 
-  switch(cellState) {
+  switch (cellState) {
     case "idle":
     // Let them try again
     case "errored":
@@ -25,21 +25,13 @@ const Cell = ({ cellID }: { cellID: string }) => {
     <div className="bg-gray-100 p-4 rounded flex items-start">
       <Button
         variant="ghost"
-        className="font-mono mr-2 text-sm group w-14"
+        className="font-mono text-sm group w-14 h-full pt-0 pb-0 m-0"
         onClick={executeCell}
       >
-        [
-        <div className="group-hover:block hidden">{actionIcon}</div>
-        <span className="group-hover:hidden">{executionCount}</span>
-        ]
+        [<div className="group-hover:block hidden">{actionIcon}</div>
+        <span className="group-hover:hidden">{executionCount}</span>]
       </Button>
-      <Input
-        type="text"
-        placeholder="write code..."
-        className="mr-2 font-mono text-sm"
-        value={content}
-        onChange={(e) => updateCell(e.target.value)}
-      />
+      <Editor cellId={cellId} className="mr-2 pt-0 pb-0 text-sm" language="python"/>
     </div>
   );
 };
