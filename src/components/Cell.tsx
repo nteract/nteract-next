@@ -7,6 +7,7 @@ const Cell = ({ cellId }: { cellId: string }) => {
   const { executeCell, cellState, executionCount } = useCell(cellId);
 
   let actionIcon = "▶";
+  let showExecutionCountAs = executionCount === null ? " " : executionCount;
 
   switch (cellState) {
     case "idle":
@@ -18,6 +19,7 @@ const Cell = ({ cellId }: { cellId: string }) => {
     case "busy":
     case "queued":
       actionIcon = "⏹";
+      showExecutionCountAs = "*";
       break;
   }
 
@@ -29,7 +31,7 @@ const Cell = ({ cellId }: { cellId: string }) => {
         onClick={executeCell}
       >
         [<div className="group-hover:block hidden">{actionIcon}</div>
-        <span className="group-hover:hidden">{executionCount}</span>]
+        <span className="group-hover:hidden">{showExecutionCountAs}</span>]
       </Button>
       <Editor cellId={cellId} className="mr-2 pt-0 pb-0 text-sm" language="python"/>
     </div>
