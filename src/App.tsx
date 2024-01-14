@@ -8,7 +8,7 @@ function App() {
   return (
     <div>
       {cells.map((cellId: string) => (
-          <Cell cellId={cellId}/>
+          <Cell cellId={cellId} key={cellId}/>
       ))}
       <Button onClick={createCell}>New Cell</Button>
     </div>
