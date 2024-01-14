@@ -10,14 +10,11 @@ use tauri::{Manager, State, Window};
 // Structures for the notebook and cells
 use log::{debug, info};
 
-
-use kernel_sidecar::client::Client;
+use kernel_sidecar::{client::Client, handlers::SimpleOutputHandler};
 
 use kernel_sidecar::handlers::{DebugHandler, Handler};
 use kernel_sidecar::kernels::JupyterKernel;
 use kernel_sidecar::notebook::Notebook;
-
-
 
 // AppState that holds the mapping from Window to Notebook
 struct AppState {
@@ -56,7 +53,8 @@ impl AppState {
     }
 
     // Perform the cell execution within the AppState context
-    async fn execute_cell(&self, window_id: &str, cell_id: &str) -> bool {
+    async fn execute_cell(&self, window: Window, cell_id: &str) -> bool {
+        let window_id = window.label(); // Use the window label as a unique identifier
         debug!(
             "Executing cell with ID: {} in window with ID: {}",
             cell_id, window_id
@@ -76,10 +74,16 @@ impl AppState {
 
                 let source = cell.get_source();
                 let debug_handler = Arc::new(Mutex::new(DebugHandler::new()));
-                let handlers: Vec<Arc<Mutex<dyn Handler>>> = vec![debug_handler.clone()];
+                let output_handler = Arc::new(Mutex::new(SimpleOutputHandler::new()));
+                let handlers: Vec<Arc<Mutex<dyn Handler>>> =
+                    vec![debug_handler.clone(), output_handler.clone()];
 
-                let action = kernel_client.execute_request(source, handlers);
+                let action = kernel_client.execute_request(source, handlers).await;
                 action.await;
+
+                let finished_output = &output_handler.lock().await.output;
+
+                window.emit("output", finished_output.clone()).unwrap();
                 return true;
             }
         }
@@ -130,8 +134,7 @@ async fn execute_cell(
     window: Window,
     cell_id: &str,
 ) -> Result<bool, String> {
-    let window_id = window.label(); // Use the window label as a unique identifier
-    Ok(state.execute_cell(window_id, cell_id).await)
+    Ok(state.execute_cell(window, cell_id).await)
 }
 
 #[tauri::command]
