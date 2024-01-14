@@ -32,6 +32,9 @@ const styleTheme = EditorView.baseTheme({
   }
 });
 
+// TODO(Kyle): I'm not sure if this is the best way to associate a cellId with a CodeMirror instance.
+//             `create` takes an EditorState and returns the putative cellId. We don't know it at this
+//             point, so we just return an empty string. `update` is called with the cellId.
 const cellIdState = StateField.define<string>({
   create: () => "",
   update: (cellId) => {
@@ -55,6 +58,8 @@ export const executeAndGoDownKeybinding = {
   run: (view: EditorView) => {
     const cellId = view.state.field(cellIdState);
     invoke("execute_cell", { cellId });
+
+    // TODO(Kyle): Dispatch action to focus next cell or create a new one
     return true;
   },
   preventDefault: true,
