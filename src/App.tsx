@@ -7,8 +7,8 @@ function App() {
   const { cells, createCell } = useNotebook();
   return (
     <div>
-      {cells.map((cellID: string) => (
-          <Cell cellID={cellID}/>
+      {cells.map((cellId: string) => (
+          <Cell cellId={cellId} key={cellId}/>
       ))}
       <Button onClick={createCell}>New Cell</Button>
     </div>

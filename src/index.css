@@ -74,3 +74,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.cm-focused-ring {
+  @apply focus:ring focus:ring-ring;
+}

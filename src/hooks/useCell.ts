@@ -12,7 +12,7 @@ export function useCell(cellId: string) {
 
   // Execution count is only set by the backend.
 
-  const executionCount = 0; // TODO: get from backend
+  const executionCount = null; // TODO: get from backend
 
   // Queued, busy, and errored are set by the backend. However, we have to
   // have our own state for queued for before the backend has acknowledged the

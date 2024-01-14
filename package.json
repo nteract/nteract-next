@@ -10,15 +10,25 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.3.3",
+    "@codemirror/lang-javascript": "^6.2.1",
+    "@codemirror/lang-markdown": "^6.2.3",
+    "@codemirror/lang-python": "^6.1.3",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.23.0",
+    "@lezer/highlight": "^1.2.0",
     "@radix-ui/react-icons": "^1.3.0",
     "@radix-ui/react-slot": "^1.0.2",
     "@tauri-apps/api": "^1.5.2",
+    "@uiw/react-codemirror": "^4.21.21",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "codemirror": "^6.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.2.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "thememirror": "^2.0.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^1.5.7",
