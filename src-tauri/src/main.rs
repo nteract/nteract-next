@@ -4,71 +4,103 @@
 use tokio::sync::Mutex;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use tauri::{Manager, State, Window};
-use ulid::Ulid;
+
 // Structures for the notebook and cells
-use log::{debug, info, warn};
+use log::{debug, info};
 
-use env_logger;
+use kernel_sidecar::{client::Client, handlers::SimpleOutputHandler};
 
-use tokio::task;
-
-struct Notebook {
-    cells: HashMap<String, Cell>,
-    cell_order: Vec<String>,
-}
-
-// TODO: Implement cell types markdown and code
-struct Cell {
-    id: String,
-    content: String,
-}
+use kernel_sidecar::handlers::{DebugHandler, Handler};
+use kernel_sidecar::kernels::JupyterKernel;
+use kernel_sidecar::notebook::Notebook;
 
 // AppState that holds the mapping from Window to Notebook
 struct AppState {
+    // Notebooks are just the document model, and could exist even if there's no underlying kernel
     notebooks: Mutex<HashMap<String, Notebook>>,
+    // kernels are subprocesses started by the main tauri process, this is mostly here to keep
+    // a reference to them so they don't drop out of scope.
+    kernels: Mutex<HashMap<String, JupyterKernel>>,
+    // A kernel client is like jupyter_client in that it manages ZMQ connections to a Kernel. If
+    // a kernel is started outside this app, we could connect to it given a connection file, so
+    // kernel_clients map doesn't necessarily need to match 1:1 with kernels map
+    kernel_clients: Mutex<HashMap<String, Client>>,
 }
 
 impl AppState {
     fn new() -> Self {
         Self {
             notebooks: Mutex::new(HashMap::new()),
+            kernels: Mutex::new(HashMap::new()),
+            kernel_clients: Mutex::new(HashMap::new()),
         }
     }
 
     async fn create_notebook(&self, window_id: &str) {
         let mut notebooks = self.notebooks.lock().await;
-        notebooks.insert(
-            window_id.to_string(),
-            Notebook {
-                cells: HashMap::new(),
-                cell_order: Vec::new(),
-            },
-        );
+        let nb = Notebook::new();
+        notebooks.insert(window_id.to_string(), nb);
+    }
+
+    async fn start_kernel(&self, window_id: &str) -> (JupyterKernel, Client) {
+        info!("Starting kernel for window with ID: {}", window_id);
+        let silent = true; // true = send ipykernel subprocess stdout to /dev/null
+        let kernel = JupyterKernel::ipython(silent);
+        let client = Client::new(kernel.connection_info.clone()).await;
+        (kernel, client)
     }
 
     // Perform the cell execution within the AppState context
-    async fn execute_cell(&self, window_id: &str, cell_id: &str) -> bool {
+    async fn execute_cell(&self, window: Window, cell_id: &str) -> bool {
+        let window_id = window.label(); // Use the window label as a unique identifier
         debug!(
-            "Attempting to execute cell with ID: {} in window with ID: {}",
+            "Executing cell with ID: {} in window with ID: {}",
             cell_id, window_id
         );
-
         let mut notebooks = self.notebooks.lock().await;
+        let mut kernel_clients = self.kernel_clients.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
-            notebook.execute_cell(cell_id).await;
-            true
-        } else {
-            false
+            if let Some(cell) = notebook.get_cell(cell_id) {
+                // Start kernel if it doesn't exist
+                if !kernel_clients.contains_key(window_id) {
+                    let (kernel, client) = self.start_kernel(window_id).await;
+                    let mut kernels = self.kernels.lock().await;
+                    kernels.insert(window_id.to_string(), kernel);
+                    kernel_clients.insert(window_id.to_string(), client);
+                }
+                let kernel_client = kernel_clients.get(window_id).unwrap();
+
+                let source = cell.get_source();
+                let debug_handler = Arc::new(Mutex::new(DebugHandler::new()));
+                let output_handler = Arc::new(Mutex::new(SimpleOutputHandler::new()));
+                let handlers: Vec<Arc<Mutex<dyn Handler>>> =
+                    vec![debug_handler.clone(), output_handler.clone()];
+
+                let action = kernel_client.execute_request(source, handlers).await;
+                action.await;
+
+                let finished_output = &output_handler.lock().await.output;
+
+                window.emit(
+                    format!("cell-outputs-{}", cell_id).as_str(),
+                    Some(finished_output.clone()),
+                    ).unwrap();
+                return true;
+            }
         }
+        false
     }
 
+    // Return cell_id
     async fn create_cell(&self, window_id: &str) -> Option<String> {
         debug!("Creating a new cell in window with ID: {}", window_id);
 
         let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
-            Some(notebook.create_cell())
+            let new_cell = notebook.add_code_cell("");
+            Some(new_cell.id().to_string())
         } else {
             None
         }
@@ -83,7 +115,9 @@ impl AppState {
 
         let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
-            notebook.update_cell(cell_id, new_content);
+            if let Some(cell) = notebook.get_mut_cell(cell_id) {
+                cell.set_source(new_content);
+            }
             true
         } else {
             false
@@ -91,57 +125,8 @@ impl AppState {
     }
 }
 
-impl Notebook {
-    async fn execute_cell(&mut self, cell_id: &str) {
-        if let Some(cell) = self.cells.get(cell_id) {
-            let cell_content = cell.content.clone();
-            let result = task::spawn_blocking(move || {
-                println!("Executing cell with content: {}", cell_content);
-                "Pretend that execution got queued"
-            })
-            .await;
-
-            match result {
-                Ok(_) => {
-                    println!("Cell execution queued");
-                }
-                Err(_) => {
-                    println!("Cell failed to queue");
-                }
-            }
-        } else {
-            warn!("Cell with ID: {} not found", cell_id);
-        }
-    }
-
-    fn create_cell(&mut self) -> String {
-        let cell_id = Ulid::new().to_string();
-        let new_cell = Cell {
-            id: cell_id.clone(),
-            content: String::new(),
-        };
-
-        self.cells.insert(cell_id.clone(), new_cell);
-        self.cell_order.push(cell_id.clone());
-
-        debug!("Created cell with ID: {}", cell_id.clone());
-
-        cell_id
-    }
-
-    // Method to update an existing cell in the notebook
-    fn update_cell(&mut self, cell_id: &str, new_content: &str) {
-        if let Some(cell) = self.cells.get_mut(cell_id) {
-            cell.content = new_content.to_string();
-        }
-    }
-}
-
 #[tauri::command]
-async fn create_cell(
-    state: State<'_, AppState>,
-    window: Window,
-) -> Result<Option<String>, String> {
+async fn create_cell(state: State<'_, AppState>, window: Window) -> Result<Option<String>, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
     Ok(state.create_cell(window_id).await)
 }
@@ -152,8 +137,7 @@ async fn execute_cell(
     window: Window,
     cell_id: &str,
 ) -> Result<bool, String> {
-    let window_id = window.label(); // Use the window label as a unique identifier
-    Ok(state.execute_cell(window_id, cell_id).await)
+    Ok(state.execute_cell(window, cell_id).await)
 }
 
 #[tauri::command]

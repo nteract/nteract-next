@@ -1,46 +1,82 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useReducer } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
+import { listen } from '@tauri-apps/api/event'
 
-type CellStates = "idle" | "queued" | "busy" | "errored" | "submitted";
+enum ExecutionState {
+  Idle = "idle",
+  Queued = "queued",
+  Busy = "busy",
+  Errored = "errored",
+  Submitted = "submitted"
+}
+
+type Action = { type: 'setSubmitted' } | { type: 'reset' } | {type: "setOutputs", outputs: []}
+
+type CellState = {
+  executionState: ExecutionState;
+  outputs: [];
+}
+
+const initialState: CellState = {
+  executionState: ExecutionState.Idle,
+  outputs: []
+};
+
+function cellReducer(state: CellState, action: Action) {
+  switch (action.type) {
+    case 'setSubmitted':
+      return { ...state, executionState: ExecutionState.Submitted };
+    case 'reset':
+      return { ...state, executionState: ExecutionState.Idle };
+    case 'setOutputs':
+      return {...state, outputs: action.outputs }
+    default:
+      return state;
+  }
+}
 
 export function useCell(cellId: string) {
   const [content, setContent] = useState<string>("");
-
-  // We also find out the execution count, whether the cell is queued, busy, or
-  // errored, and the output of the cell. We can use this to display the
-  // execution count, a spinner, or an error message.
-
-  // Execution count is only set by the backend.
-
-  const executionCount = null; // TODO: get from backend
-
-  // Queued, busy, and errored are set by the backend. However, we have to
-  // have our own state for queued for before the backend has acknowledged the
-  // execution request.
-
-  const [executionSubmitted, setExecutionSubmitted] = useState<boolean>(false);
-
-  let cellState: CellStates = "idle";
-
-  if (executionSubmitted) {
-    cellState = "submitted";
-  }
-
+  const [state, dispatch] = useReducer(cellReducer, initialState);
+  
   const executeCell = useCallback(async () => {
-    setExecutionSubmitted(true);
-    await invoke("execute_cell", { cellId });
-    setExecutionSubmitted(false);
+    dispatch({ type: 'setSubmitted' });
+    try {
+      await invoke("execute_cell", { cellId });
+    } catch (error) {
+      console.error(error);
+      // Handle error
+    }
+    dispatch({ type: 'reset' });
   }, [cellId]);
 
-  const updateCell = useCallback(
-    async (newContent: string) => {
+  const updateCell = useCallback(async (newContent: string) => {
+    try {
       await invoke("update_cell", { cellId, newContent });
       setContent(newContent);
-    },
-    [cellId]
-  );
+    } catch (error) {
+      console.error(error);
+      // Handle error
+    }
+  }, [cellId]);
 
-  // TODO(kyle): Listen for events from the backend to update the cell content
+  useEffect(() => {
+    const setupListener = async () => {
+      const unlisten = await listen(`cell-outputs-${cellId}`, (event) => {
+        // Q(Kyle): Do we need to check if the event.windowLabel matches ours
+        const outputs = event.payload as [];
 
-  return { content, executeCell, updateCell, cellState: cellState as CellStates, executionCount };
+        dispatch({type: "setOutputs", outputs})
+
+      });
+
+      return () => {
+        unlisten();
+      };
+    };
+
+    setupListener();
+  }, [cellId]);
+
+  return { ...state, content, executeCell, updateCell, executionCount: null};
 }
