@@ -23,6 +23,17 @@ log = "0.4.20"
 env_logger = "0.10.1"
 kernel-sidecar = "0.1.0"
 
+[target.'cfg(windows)'.dependencies.zeromq]
+version = "=0.3.4"
+default-features = false
+features = ["tcp-transport", "tokio-runtime"]
+
+
+[target.'cfg(unix)'.dependencies.zeromq]
+version = "=0.3.4"
+default-features = false
+features = ["ipc-transport", "tcp-transport", "tokio-runtime"]
+
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
