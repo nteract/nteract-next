@@ -83,7 +83,10 @@ impl AppState {
 
                 let finished_output = &output_handler.lock().await.output;
 
-                window.emit("output", finished_output.clone()).unwrap();
+                window.emit(
+                    format!("cell-outputs-{}", cell_id).as_str(),
+                    Some(finished_output.clone()),
+                    ).unwrap();
                 return true;
             }
         }
