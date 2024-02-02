@@ -6,7 +6,7 @@ import { lightTheme } from "@/codemirror-themes";
 
 import { StateField } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { useCell } from "@/hooks/useCell";
+import { useCodeCell } from "@/hooks/useCell";
 
 import { invoke } from "@tauri-apps/api/tauri";
 
@@ -29,7 +29,14 @@ const styleTheme = EditorView.baseTheme({
     // From Tailwind's text-sm. Not sure if this is actually applying it.
     "font-size": "0.875rem",
     "line-height": "1.25rem",
-  }
+  },
+  // Don't highlight the active line if the editor is not focused
+  "&:not(.cm-focused) .cm-activeLine": {
+    backgroundColor: "transparent",
+  },
+  "&:not(.cm-focused) .cm-activeLineGutter": {
+    backgroundColor: "transparent",
+  },
 });
 
 // TODO(Kyle): I'm not sure if this is the best way to associate a cellId with a CodeMirror instance.
@@ -75,7 +82,7 @@ const baseExtensions = [
 export const Editor = ({ cellId, className, language }: { cellId: string, className?: string, language: string }) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { content, updateCell } = useCell(cellId);
+  const { content, updateCell } = useCodeCell(cellId);
 
   // We need to compute a derived extensions state based on the language of the editor
   const extensions = useMemo(() => {

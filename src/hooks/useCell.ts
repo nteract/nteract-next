@@ -35,7 +35,26 @@ function cellReducer(state: CellState, action: Action) {
   }
 }
 
-export function useCell(cellId: string) {
+export function useMarkdownCell(cellId: string) {
+  const [content, setContent] = useState<string>("");
+
+  const updateCell = useCallback(async (newContent: string) => {
+    try {
+      await invoke("update_cell", { cellId, newContent });
+      setContent(newContent);
+    } catch (error) {
+      console.error(error);
+      // Handle error
+    }
+  }, [cellId]); 
+
+  // TODO: Push/pull this from cell metadata
+  const metadata = { };
+
+  return { content, updateCell, metadata };
+}
+
+export function useCodeCell(cellId: string) {
   const [content, setContent] = useState<string>("");
   const [state, dispatch] = useReducer(cellReducer, initialState);
   
