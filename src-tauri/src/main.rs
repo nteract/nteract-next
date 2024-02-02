@@ -94,12 +94,16 @@ impl AppState {
     }
 
     // Return cell_id
-    async fn create_cell(&self, window_id: &str) -> Option<String> {
+    async fn create_cell(&self, window_id: &str, cell_type: Option<&str>) -> Option<String> {
         debug!("Creating a new cell in window with ID: {}", window_id);
 
+        let cell_type = cell_type.unwrap_or("code");
         let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
-            let new_cell = notebook.add_code_cell("");
+            let new_cell = match cell_type {
+                "markdown" => notebook.add_markdown_cell(""),
+                _ => notebook.add_code_cell(""),
+            };
             Some(new_cell.id().to_string())
         } else {
             None
@@ -126,9 +130,9 @@ impl AppState {
 }
 
 #[tauri::command]
-async fn create_cell(state: State<'_, AppState>, window: Window) -> Result<Option<String>, String> {
+async fn create_cell(state: State<'_, AppState>, window: Window, cell_type: &str) -> Result<Option<String>, String> {
     let window_id = window.label(); // Use the window label as a unique identifier
-    Ok(state.create_cell(window_id).await)
+    Ok(state.create_cell(window_id, Some(cell_type)).await)
 }
 
 #[tauri::command]
