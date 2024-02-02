@@ -6,7 +6,7 @@ import { lightTheme } from "@/codemirror-themes";
 
 import { StateField } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { useCell } from "@/hooks/useCell";
+import { useCodeCell } from "@/hooks/useCell";
 
 import { invoke } from "@tauri-apps/api/tauri";
 
@@ -75,7 +75,7 @@ const baseExtensions = [
 export const Editor = ({ cellId, className, language }: { cellId: string, className?: string, language: string }) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { content, updateCell } = useCell(cellId);
+  const { content, updateCell } = useCodeCell(cellId);
 
   // We need to compute a derived extensions state based on the language of the editor
   const extensions = useMemo(() => {
