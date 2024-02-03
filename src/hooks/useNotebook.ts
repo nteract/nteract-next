@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { invoke } from "@tauri-apps/api/tauri";
 
+type CellInfo = {
+  id: string,
+  cellType: "code" | "markdown"
+}
+
 export function useNotebook() {
-  const [cells, setCells] = useState<string[]>([]);
+  const [cells, setCells] = useState<CellInfo[]>([]);
 
-  async function createCell() {
-    const id = (await invoke("create_cell")) as string;
-    setCells(oldCells => [...oldCells, id]);
-  }
+  const createCell = useCallback(async (cellType: "code" | "markdown") => {
+    const id = (await invoke("create_cell", { cellType })) as string;
+    setCells(oldCells => [...oldCells, { id, cellType }]);
+  }, []);
 
-  // TODO(kyle): Listen to events from the backend to update the cell list
+  const createCodeCell = useCallback(() => createCell("code"), [createCell]);
+  const createMarkdownCell = useCallback(() => createCell("markdown"), [createCell]);
 
-  return { cells, createCell };
+  return { cells, createCell, createCodeCell, createMarkdownCell};
 }

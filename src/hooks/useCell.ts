@@ -35,18 +35,43 @@ function cellReducer(state: CellState, action: Action) {
   }
 }
 
-export function useMarkdownCell(cellId: string) {
+export function useCell(cellId: string) {
   const [content, setContent] = useState<string>("");
 
   const updateCell = useCallback(async (newContent: string) => {
     try {
-      await invoke("update_cell", { cellId, newContent });
       setContent(newContent);
+      await invoke("update_cell", { cellId, newContent });
     } catch (error) {
       console.error(error);
       // Handle error
     }
-  }, [cellId]); 
+  }, [cellId]);
+
+
+  useEffect(() => {
+    const setupListener = async () => {
+      const unlisten = await listen(`cell-${cellId}`, (event) => {
+        const cellUpdate = event.payload as any;
+
+        setContent(cellUpdate.source)
+      });
+
+      return () => {
+        unlisten();
+      };
+    };
+
+    setupListener();
+  }, [cellId]);
+
+
+
+  return { content, setContent, updateCell }
+}
+
+export function useMarkdownCell(cellId: string) {
+  const { content, updateCell } = useCell(cellId);
 
   // TODO: Push/pull this from cell metadata
   const metadata = { };
@@ -55,7 +80,8 @@ export function useMarkdownCell(cellId: string) {
 }
 
 export function useCodeCell(cellId: string) {
-  const [content, setContent] = useState<string>("");
+  const { content, updateCell } = useCell(cellId);
+
   const [state, dispatch] = useReducer(cellReducer, initialState);
   
   const executeCell = useCallback(async () => {
@@ -67,16 +93,6 @@ export function useCodeCell(cellId: string) {
       // Handle error
     }
     dispatch({ type: 'reset' });
-  }, [cellId]);
-
-  const updateCell = useCallback(async (newContent: string) => {
-    try {
-      await invoke("update_cell", { cellId, newContent });
-      setContent(newContent);
-    } catch (error) {
-      console.error(error);
-      // Handle error
-    }
   }, [cellId]);
 
   useEffect(() => {

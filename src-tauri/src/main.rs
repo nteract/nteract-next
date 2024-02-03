@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use serde_json::json;
 use tokio::sync::Mutex;
 
 use std::collections::HashMap;
@@ -94,12 +95,17 @@ impl AppState {
     }
 
     // Return cell_id
-    async fn create_cell(&self, window_id: &str) -> Option<String> {
+    async fn create_cell(&self, window: Window, cell_type: Option<&str>) -> Option<String> {
+        let window_id = window.label();
         debug!("Creating a new cell in window with ID: {}", window_id);
 
+        let cell_type = cell_type.unwrap_or("code");
         let mut notebooks = self.notebooks.lock().await;
         if let Some(notebook) = notebooks.get_mut(window_id) {
-            let new_cell = notebook.add_code_cell("");
+            let new_cell = match cell_type {
+                "markdown" => notebook.add_markdown_cell(""),
+                _ => notebook.add_code_cell(""),
+            };
             Some(new_cell.id().to_string())
         } else {
             None
@@ -107,7 +113,8 @@ impl AppState {
     }
 
     // Update a specific cell within the specified notebook
-    async fn update_cell(&self, window_id: &str, cell_id: &str, new_content: &str) -> bool {
+    async fn update_cell(&self, window: Window, cell_id: &str, new_content: &str) -> bool {
+        let window_id = window.label();
         debug!(
             "Updating cell with ID: {} in window with ID: {} with new content: {}",
             cell_id, window_id, new_content
@@ -117,6 +124,13 @@ impl AppState {
         if let Some(notebook) = notebooks.get_mut(window_id) {
             if let Some(cell) = notebook.get_mut_cell(cell_id) {
                 cell.set_source(new_content);
+
+                window.emit(
+                    format!("cell-{}", cell_id).as_str(),
+                    Some(json!({
+                        "source": new_content
+                    }))
+                ).unwrap();
             }
             true
         } else {
@@ -126,9 +140,8 @@ impl AppState {
 }
 
 #[tauri::command]
-async fn create_cell(state: State<'_, AppState>, window: Window) -> Result<Option<String>, String> {
-    let window_id = window.label(); // Use the window label as a unique identifier
-    Ok(state.create_cell(window_id).await)
+async fn create_cell(state: State<'_, AppState>, window: Window, cell_type: &str) -> Result<Option<String>, String> {
+    Ok(state.create_cell(window, Some(cell_type)).await)
 }
 
 #[tauri::command]
@@ -147,8 +160,7 @@ async fn update_cell(
     cell_id: &str,
     new_content: &str,
 ) -> Result<bool, String> {
-    let window_id = window.label(); // Use the window label as a unique identifier
-    Ok(state.update_cell(window_id, cell_id, new_content).await)
+    Ok(state.update_cell(window, cell_id, new_content).await)
 }
 
 // The main entry point for the Tauri application
